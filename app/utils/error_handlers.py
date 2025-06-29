@@ -1,6 +1,6 @@
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 class ErrorResponse(BaseModel):
@@ -13,9 +13,9 @@ class SuccessResponse(BaseModel):
     """Standard success response model"""
     status_code: int = 200
     message: str
-    data: Optional[Any] = None
+    data: Any | None = None
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle HTTP exceptions"""
     return JSONResponse(
         status_code=exc.status_code,
@@ -23,10 +23,10 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             status_code=exc.status_code,
             detail=exc.detail,
             error_type="http_error"
-        ).dict()
+        ).model_dump()
     )
 
-async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle validation exceptions"""
     return JSONResponse(
         status_code=422,
@@ -34,10 +34,10 @@ async def validation_exception_handler(request: Request, exc: Exception) -> JSON
             status_code=422,
             detail=str(exc),
             error_type="validation_error"
-        ).dict()
+        ).model_dump()
     )
 
-async def database_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+def database_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle database exceptions"""
     return JSONResponse(
         status_code=500,
@@ -45,10 +45,10 @@ async def database_exception_handler(request: Request, exc: Exception) -> JSONRe
             status_code=500,
             detail="Database error occurred",
             error_type="database_error"
-        ).dict()
+        ).model_dump()
     )
 
-async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle general exceptions"""
     return JSONResponse(
         status_code=500,
@@ -56,5 +56,5 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
             status_code=500,
             detail="Internal server error",
             error_type="server_error"
-        ).dict()
+        ).model_dump()
     ) 

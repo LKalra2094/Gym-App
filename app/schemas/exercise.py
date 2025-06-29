@@ -1,25 +1,31 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, field_validator, ConfigDict
 from typing import Optional
-from uuid import UUID
+import uuid
 
 class ExerciseBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
+    name: str
+    workout_id: uuid.UUID | None = None
 
-    @validator('name')
-    def name_must_be_valid(cls, v):
-        if not v.strip():
-            raise ValueError('Name cannot be empty or contain only whitespace')
-        return v.strip()
+    @field_validator('name')
+    def name_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Name cannot be empty')
+        return v
 
 class ExerciseCreate(ExerciseBase):
     pass
 
-class Exercise(ExerciseBase):
-    id: UUID
-    slug: str
-    workout_id: UUID
-    created_at: str
-    updated_at: Optional[str] = None
+class ExerciseUpdate(ExerciseBase):
+    name: str | None = None
+    workout_id: uuid.UUID | None = None
 
-    class Config:
-        from_attributes = True 
+class ExerciseInDBBase(ExerciseBase):
+    id: uuid.UUID
+
+    model_config = ConfigDict(from_attributes=True)
+
+class Exercise(ExerciseInDBBase):
+    pass
+
+class ExerciseInDB(ExerciseInDBBase):
+    pass

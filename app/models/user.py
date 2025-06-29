@@ -1,35 +1,41 @@
-from sqlalchemy import Column, String, DateTime, Enum, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
-from sqlalchemy.dialects.postgresql import UUID
-from .base import BaseModel
-from .enums import UserRole, WeightUnit
+from __future__ import annotations
 
-class User(BaseModel):
+import datetime
+import uuid
+
+import sqlalchemy as sa
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base
+from app.models.enums import UserRole, Gender
+
+
+class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String, unique=True, index=True)
-    password = Column(String)
-    role = Column(Enum(UserRole), default=UserRole.USER)
-    is_verified = Column(Boolean, default=False)
-    verification_token = Column(String, nullable=True)
-    reset_token = Column(String, nullable=True)
-    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
-    preferred_weight_unit = Column(Enum(WeightUnit), default=WeightUnit.KG)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(unique=True, index=True)
+    password: Mapped[str]
+    first_name: Mapped[str]
+    last_name: Mapped[str]
+    birthday: Mapped[datetime.date]
+    gender: Mapped[Gender]
+    role: Mapped[UserRole] = mapped_column(default=UserRole.USER)
+    is_verified: Mapped[bool] = mapped_column(default=False)
+    verification_token: Mapped[str | None]
+    reset_token: Mapped[str | None]
+    reset_token_expires: Mapped[datetime.datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True)
+    )
 
-    workouts = relationship("Workout", back_populates="user", cascade="all, delete-orphan")
-    exercise_logs = relationship("ExerciseLog", back_populates="user")
+    workouts: Mapped[list["Workout"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
-    def is_admin(self) -> bool:
-        """Check if user is an admin."""
-        return self.role == UserRole.ADMIN
+    @property
+    def age(self) -> int:
+        today = datetime.date.today()
+        return today.year - self.birthday.year - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
 
-    def can_access_user_data(self, target_user_id: uuid.UUID) -> bool:
-        """Check if user has permission to access another user's data."""
-        # Admins can access any user's data
-        if self.is_admin():
-            return True
-        # Regular users can only access their own data
-        return self.id == target_user_id 
+    def __repr__(self) -> str:
+        return f"<User(id={self.id}, email={self.email})>"

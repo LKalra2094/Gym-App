@@ -1,8 +1,8 @@
-"""Update IDs to use PostgreSQL UUID type
+"""Remove slug columns from exercises and workouts
 
-Revision ID: 4eb27bb9d58b
-Revises: 1c21530f63b1
-Create Date: 2025-06-14 16:32:46.094246
+Revision ID: 33944d866ee4
+Revises: 4965cea4fd65
+Create Date: 2025-06-26 10:45:14.517863
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4eb27bb9d58b'
-down_revision: Union[str, None] = '1c21530f63b1'
+revision: str = '33944d866ee4'
+down_revision: Union[str, None] = '4965cea4fd65'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

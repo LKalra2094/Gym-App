@@ -2,8 +2,8 @@
 Unit tests for the weight conversion utility functions.
 """
 import pytest
-from app.models import WeightUnit
 from app.utils.weight_converter import convert_weight
+from app.models.enums import WeightUnit
 
 def test_convert_weight_same_unit():
     """Test converting weight between same units returns same value"""

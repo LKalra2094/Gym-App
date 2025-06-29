@@ -1,34 +1,53 @@
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.database import Base
-from app.models import User, Workout, Exercise, ExerciseLog
+from sqlalchemy.orm import sessionmaker, Session
+from fastapi.testclient import TestClient
+from typing import Generator
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.main import app
+from app.db.session import get_db
+from app.core.config import settings
+from app.utils.reset_database import reset_database
 
-# Use the Supabase database URL
-TEST_DATABASE_URL = "postgresql://postgres:Hsb9IPCr3a8cfzHN@db.ynpvwgblyssobuxskufz.supabase.co:5432/postgres"
+# Use the database URL from the main app configuration, ensuring it's a string
+SQLALCHEMY_DATABASE_URL = str(settings.DATABASE_URL)
 
-@pytest.fixture(scope="session")
-def engine():
-    engine = create_engine(TEST_DATABASE_URL)
-    Base.metadata.create_all(engine)
-    yield engine
-    # We'll keep the tables after tests since this is a development database
-    # Base.metadata.drop_all(engine)
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@pytest.fixture(scope="function")
-def db_session(engine):
-    """Create a new database session for a test."""
-    connection = engine.connect()
-    transaction = connection.begin()
-    Session = sessionmaker(bind=connection)
-    session = Session()
+@pytest.fixture(scope="session", autouse=True)
+def setup_database():
+    """
+    Reset and seed the database once per test session.
+    This creates the default admin user.
+    """
+    reset_database()
 
-    yield session
+@pytest.fixture()
+def db_session() -> Generator[Session, None, None]:
+    """
+    Yields a database session for a single test function.
+    This session will have access to the pre-seeded data.
+    """
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-    session.close()
-    transaction.rollback()
-    connection.close() 
+@pytest.fixture()
+def client(db_session: Session) -> Generator[TestClient, None, None]:
+    """
+    Yields a TestClient for making API requests.
+    Overrides the `get_db` dependency to use the test database session.
+    """
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    
+    with TestClient(app) as test_client:
+        yield test_client
+        
+    app.dependency_overrides.clear() 

@@ -1,50 +1,63 @@
+# app/main.py
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+
 from .core.config import settings
 from .core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware, TimingMiddleware
-from .db.session import Base, engine
-from .api.v1 import api_router
-
-# Create database tables
-Base.metadata.create_all(bind=engine)
+from .api.v1.api import api_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="API for tracking workout progress and exercise weights",
     version=settings.VERSION,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    docs_url=f"{settings.API_V1_STR}/docs",
+    redoc_url=f"{settings.API_V1_STR}/redoc",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
-# Add middleware
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.add_middleware(RequestIDMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(TimingMiddleware)
-
-# Add CORS middleware
+# 1. CORS first—so preflight requests are handled immediately
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     max_age=3600,
 )
 
-# Include API router
+# 2. GZip compression
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# 3. Custom middleware
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(TimingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 4. Versioned API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-@app.get("/")
+
+@app.get("/", tags=["Root"])
 async def root():
-    """Root endpoint that redirects to API documentation."""
+    """
+    Root endpoint with basic welcome information.
+    """
     return {
         "message": f"Welcome to {settings.PROJECT_NAME}",
-        "docs_url": "/api/docs",
-        "version": settings.VERSION
+        "docs_url": f"{settings.API_V1_STR}/docs",
+        "version": settings.VERSION,
     }
 
-# Add this for Vercel
-app = app 
+
+@app.get(f"{settings.API_V1_STR}/health", tags=["Health"])
+async def health_check():
+    """
+    Simple health check endpoint.
+    """
+    return {"status": "ok"}
+
+
+# Explicitly export the ASGI app for Uvicorn / Vercel
+__all__ = ["app"]

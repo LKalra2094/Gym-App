@@ -5,7 +5,6 @@ import pytest
 from app.utils.error_handlers import ErrorResponse, SuccessResponse, http_exception_handler, validation_exception_handler, database_exception_handler, general_exception_handler
 from fastapi import HTTPException, Request
 from unittest.mock import MagicMock
-import asyncio
 
 
 def test_error_response_model():
@@ -23,38 +22,36 @@ def test_success_response_model():
     assert resp.message == "OK"
     assert resp.data == {"foo": "bar"}
 
-@pytest.mark.asyncio
 def test_http_exception_handler():
     """Test http_exception_handler returns correct JSONResponse."""
     req = MagicMock(Request)
     exc = HTTPException(status_code=404, detail="Not found")
-    response = asyncio.run(http_exception_handler(req, exc))
+    response = http_exception_handler(req, exc)
     assert response.status_code == 404
     assert response.body
 
-@pytest.mark.asyncio
 def test_validation_exception_handler():
     """Test validation_exception_handler returns correct JSONResponse."""
     req = MagicMock(Request)
+    # The actual exception from FastAPI would be a pydantic.ValidationError,
+    # but we can simulate with a generic Exception for the handler's purpose.
     exc = Exception("Validation failed")
-    response = asyncio.run(validation_exception_handler(req, exc))
+    response = validation_exception_handler(req, exc)
     assert response.status_code == 422
     assert response.body
 
-@pytest.mark.asyncio
 def test_database_exception_handler():
     """Test database_exception_handler returns correct JSONResponse."""
     req = MagicMock(Request)
     exc = Exception("DB error")
-    response = asyncio.run(database_exception_handler(req, exc))
+    response = database_exception_handler(req, exc)
     assert response.status_code == 500
     assert response.body
 
-@pytest.mark.asyncio
 def test_general_exception_handler():
     """Test general_exception_handler returns correct JSONResponse."""
     req = MagicMock(Request)
     exc = Exception("General error")
-    response = asyncio.run(general_exception_handler(req, exc))
+    response = general_exception_handler(req, exc)
     assert response.status_code == 500
     assert response.body 

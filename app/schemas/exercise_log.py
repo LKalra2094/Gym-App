@@ -1,40 +1,46 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from uuid import UUID
+from datetime import datetime, date as date_type
+from ..schemas.weight_unit import WeightUnit
 
 class ExerciseLogBase(BaseModel):
-    weight: float = Field(..., gt=0)
-    reps: int = Field(..., gt=0)
-    sets: int = Field(..., gt=0)
+    """
+    Shared properties for ExerciseLog models.
+    """
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
-    @validator('weight')
-    def weight_must_be_positive(cls, v):
-        if v <= 0:
-            raise ValueError('Weight must be greater than 0')
-        return v
-
-    @validator('reps')
-    def reps_must_be_positive(cls, v):
-        if v <= 0:
-            raise ValueError('Reps must be greater than 0')
-        return v
-
-    @validator('sets')
-    def sets_must_be_positive(cls, v):
-        if v <= 0:
-            raise ValueError('Sets must be greater than 0')
-        return v
+    weight: Optional[float] = Field(None, gt=0)
+    reps: Optional[int] = Field(None, gt=0)
+    sets: Optional[int] = Field(None, gt=0)
+    weight_unit: WeightUnit
+    date: date_type = Field(default_factory=date_type.today)
 
 class ExerciseLogCreate(ExerciseLogBase):
-    pass
+    exercise_id: UUID
 
-class ExerciseLog(ExerciseLogBase):
+class ExerciseLogUpdate(BaseModel):
+    """
+    Properties for updating an ExerciseLog; all fields optional.
+    """
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+
+    weight: Optional[float] = Field(None, gt=0)
+    reps: Optional[int] = Field(None, gt=0)
+    sets: Optional[int] = Field(None, gt=0)
+    date: Optional[date_type] = None
+    weight_unit: Optional[WeightUnit] = None
+
+class ExerciseLogRead(ExerciseLogBase):
+    """
+    Properties returned when reading an ExerciseLog from the database.
+    """
     id: UUID
     exercise_id: UUID
     user_id: UUID
-    date: str
-    created_at: str
-    updated_at: Optional[str] = None
+    date: datetime
+    created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        from_attributes = True 
+    # BaseModel.Config is deprecated in Pydantic v2; use model_config
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)

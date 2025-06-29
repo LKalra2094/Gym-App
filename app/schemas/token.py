@@ -1,9 +1,13 @@
-from pydantic import BaseModel
-from typing import Optional
+from uuid import UUID
+from pydantic import BaseModel, ConfigDict, Field
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 class TokenData(BaseModel):
-    email: Optional[str] = None 
+    id: UUID = Field(alias="sub")
+    
+    model_config = ConfigDict(
+        populate_by_name=True,
+    ) 

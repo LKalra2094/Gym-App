@@ -1,6 +1,5 @@
 import resend
 import os
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,15 +7,15 @@ load_dotenv()
 # Initialize Resend client
 resend.api_key = os.getenv('RESEND_API_KEY')
 
-async def send_verification_email(email: str, token: str):
+def send_verification_email(email: str, token: str):
     """Send verification email to user."""
-    verification_link = f"http://localhost:8000/auth/verify-email?token={token}"
+    verification_link = f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/verify-email?token={token}"
     
     try:
-        response = resend.emails.send({
+        _ = resend.Emails.send({
             "from": os.getenv('RESEND_FROM_EMAIL', 'onboarding@resend.dev'),
             "to": email,
-            "subject": "Verify your email address",
+            "subject": "Verify Your Email Address",
             "html": f"""
             <html>
                 <body>
@@ -33,15 +32,15 @@ async def send_verification_email(email: str, token: str):
         print(f"Error sending email: {str(e)}")
         return False
 
-async def send_password_reset_email(email: str, token: str):
+def send_password_reset_email(email: str, token: str):
     """Send password reset email to user."""
-    reset_link = f"http://localhost:8000/auth/reset-password?token={token}"
+    reset_link = f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/reset-password?token={token}"
     
     try:
-        response = resend.emails.send({
+        _ = resend.Emails.send({
             "from": os.getenv('RESEND_FROM_EMAIL', 'onboarding@resend.dev'),
             "to": email,
-            "subject": "Reset your password",
+            "subject": "Reset Your Password",
             "html": f"""
             <html>
                 <body>

@@ -71,7 +71,6 @@ The application uses the following main tables:
 2. **workouts**
    - id (Primary Key)
    - name
-   - slug
    - user_id (Foreign Key)
    - created_at
    - updated_at
@@ -79,7 +78,6 @@ The application uses the following main tables:
 3. **exercises**
    - id (Primary Key)
    - name
-   - slug
    - workout_id (Foreign Key)
    - created_at
    - updated_at
@@ -188,4 +186,89 @@ Integration tests are located in `tests/integration/`. These tests verify that y
 3. **Authentication**:
    - Verify SECRET_KEY in .env
    - Check email configuration
-   - Ensure RESEND_API_KEY is valid 
+   - Ensure RESEND_API_KEY is valid
+
+## New Data Model Description
+
+- **Workouts**: Users can create, view, update, and delete workouts. Each workout has a name.
+- **Exercises**: Within each workout, users can add exercises. Each exercise has a name.
+- **Logging**: Users can log their performance for each exercise, recording metrics like weight, reps, sets, and duration.
+- **Progress Tracking**: The app provides visualizations to track progress over time for specific exercises.
+- **User Authentication**: Secure user registration and login using JWT.
+- **Weight Unit Preference**: Users can set their preferred weight unit (kg or lbs).
+
+### Tech Stack
+
+- **Backend**: FastAPI, Python 3.11, PostgreSQL
+- **ORM**: SQLAlchemy with `asyncio` support
+
+## New Tables Description
+
+1. **users**
+   - id (Primary Key)
+   - email
+   - password (hashed)
+   - role
+   - is_verified
+   - verification_token
+   - reset_token
+   - reset_token_expires
+   - preferred_weight_unit
+   - created_at
+   - updated_at
+
+2. **workouts**
+   - id (Primary Key)
+   - name
+   - user_id (Foreign Key)
+   - created_at
+   - updated_at
+
+3. **exercises**
+   - id (Primary Key)
+   - name
+   - workout_id (Foreign Key)
+   - created_at
+   - updated_at
+
+4. **exercise_logs**
+   - id (Primary Key)
+   - exercise_id (Foreign Key)
+   - user_id (Foreign Key)
+   - weight
+   - weight_unit
+   - reps
+   - sets
+   - date
+   - created_at
+
+## New Columns Description
+
+1. **users**
+   - id
+   - name
+   - slug
+   - user_id
+   - created_at
+   - updated_at
+
+2. **exercises**
+   - id
+   - name
+   - slug
+   - category
+   - workout_id
+   - user_id
+   - created_at
+   - updated_at
+
+3. **exercise_logs**
+   - id
+   - exercise_id
+   - user_id
+   - weight
+   - weight_unit
+   - reps
+   - sets
+   - date
+   - created_at 

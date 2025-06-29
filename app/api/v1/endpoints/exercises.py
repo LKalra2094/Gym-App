@@ -1,84 +1,111 @@
-from fastapi import APIRouter, Depends, HTTPException
+# app/api/v1/exercises.py
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from typing import List
-from ..database import get_db
-from .. import models
-from ..schemas.exercise import Exercise, ExerciseCreate, ExerciseBase
+from uuid import UUID
 
-router = APIRouter(
-    prefix="/workouts/{workout_slug}/exercises",
-    tags=["exercises"]
-)
+from app.db.session import get_db
+from app.models.exercise import Exercise as ExerciseModel
+from app.models.workout import Workout as WorkoutModel
+from app.models.user import User as UserModel
+from app.schemas.exercise import Exercise, ExerciseCreate, ExerciseUpdate
+from app.core.security import get_current_user
 
-@router.post("/", response_model=Exercise)
-def create_exercise(
-    workout_slug: str,
+router = APIRouter(tags=["exercises"])
+
+
+@router.post("/", response_model=Exercise, status_code=status.HTTP_201_CREATED)
+def create_exercise_for_workout(
     exercise: ExerciseCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ):
-    # Verify workout exists
-    workout = db.query(models.Workout).filter(models.Workout.slug == workout_slug).first()
-    if not workout:
-        raise HTTPException(status_code=404, detail="Workout not found")
-    
-    db_exercise = models.Exercise(**exercise.dict(), workout_id=workout.id)
+    result = db.execute(
+        select(WorkoutModel).filter(
+            WorkoutModel.id == exercise.workout_id,
+            WorkoutModel.user_id == current_user.id,
+        )
+    )
+    if not result.scalars().first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workout not found")
+
+    db_exercise = ExerciseModel(**exercise.model_dump(), user_id=current_user.id)
     db.add(db_exercise)
     db.commit()
     db.refresh(db_exercise)
     return db_exercise
 
-@router.get("/", response_model=List[Exercise])
-def read_exercises(workout_slug: str, db: Session = Depends(get_db)):
-    # Verify workout exists
-    workout = db.query(models.Workout).filter(models.Workout.slug == workout_slug).first()
-    if not workout:
-        raise HTTPException(status_code=404, detail="Workout not found")
-    
-    exercises = db.query(models.Exercise).filter(
-        models.Exercise.workout_id == workout.id
-    ).all()
-    return exercises
 
-@router.get("/{exercise_slug}", response_model=Exercise)
-def read_exercise(workout_slug: str, exercise_slug: str, db: Session = Depends(get_db)):
-    exercise = db.query(models.Exercise).join(models.Workout).filter(
-        models.Workout.slug == workout_slug,
-        models.Exercise.slug == exercise_slug
-    ).first()
+@router.get("/by-workout/{workout_id}", response_model=List[Exercise])
+def read_exercises_for_workout(
+    workout_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    result = db.execute(
+        select(ExerciseModel)
+        .join(WorkoutModel)
+        .filter(
+            ExerciseModel.workout_id == workout_id,
+            WorkoutModel.user_id == current_user.id,
+        )
+    )
+    return result.scalars().all()
+
+
+@router.get("/{exercise_id}", response_model=Exercise)
+def read_exercise(
+    exercise_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    result = db.execute(
+        select(ExerciseModel)
+        .join(WorkoutModel)
+        .filter(
+            ExerciseModel.id == exercise_id,
+            WorkoutModel.user_id == current_user.id,
+        )
+    )
+    exercise = result.scalars().first()
     if exercise is None:
-        raise HTTPException(status_code=404, detail="Exercise not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
     return exercise
 
-@router.put("/{exercise_slug}", response_model=Exercise)
+
+@router.put("/{exercise_id}", response_model=Exercise)
 def update_exercise(
-    workout_slug: str,
-    exercise_slug: str,
-    exercise: ExerciseBase,
-    db: Session = Depends(get_db)
+    exercise_id: UUID,
+    exercise_in: ExerciseUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
 ):
-    db_exercise = db.query(models.Exercise).join(models.Workout).filter(
-        models.Workout.slug == workout_slug,
-        models.Exercise.slug == exercise_slug
-    ).first()
-    if db_exercise is None:
-        raise HTTPException(status_code=404, detail="Exercise not found")
-    
-    for key, value in exercise.dict().items():
-        setattr(db_exercise, key, value)
-    
+    db_exercise = db.get(ExerciseModel, exercise_id)
+    if not db_exercise or db_exercise.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
+
+    update_data = exercise_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_exercise, field, value)
+
+    db.add(db_exercise)
     db.commit()
     db.refresh(db_exercise)
     return db_exercise
 
-@router.delete("/{exercise_slug}")
-def delete_exercise(workout_slug: str, exercise_slug: str, db: Session = Depends(get_db)):
-    db_exercise = db.query(models.Exercise).join(models.Workout).filter(
-        models.Workout.slug == workout_slug,
-        models.Exercise.slug == exercise_slug
-    ).first()
-    if db_exercise is None:
-        raise HTTPException(status_code=404, detail="Exercise not found")
-    
+
+@router.delete("/{exercise_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_exercise(
+    exercise_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    db_exercise = db.get(ExerciseModel, exercise_id)
+    if not db_exercise or db_exercise.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
+
     db.delete(db_exercise)
     db.commit()
-    return {"message": "Exercise deleted successfully"} 
+    return None

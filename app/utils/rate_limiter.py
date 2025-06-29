@@ -2,7 +2,6 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 import time
 import redis
-from typing import Optional
 import os
 from dotenv import load_dotenv
 

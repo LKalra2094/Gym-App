@@ -1,54 +1,38 @@
-from pydantic import BaseModel, EmailStr, constr, validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from typing import Optional
-from .weight_unit import WeightUnit
-from uuid import UUID
+import uuid
+from datetime import date
+from app.models.enums import UserRole, WeightUnit, Gender
 
 class UserBase(BaseModel):
     email: EmailStr
-    preferred_weight_unit: WeightUnit = WeightUnit.KG
+    first_name: str
+    last_name: str
+    birthday: date
+    gender: Gender
+    role: UserRole = UserRole.USER
+    is_verified: bool = False
 
 class UserCreate(UserBase):
-    password: constr(min_length=8)
+    password: str
 
-    @validator('password')
-    def password_strength(cls, v):
-        if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
-        if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one number')
+    @field_validator('password')
+    def password_must_be_strong(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
         return v
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    preferred_weight_unit: Optional[WeightUnit] = None
-    password: Optional[constr(min_length=8)] = None
+    email: EmailStr | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    birthday: date | None = None
+    gender: Gender | None = None
+    role: UserRole | None = None
+    is_verified: bool | None = None
 
 class UserResponse(UserBase):
-    id: UUID
-    is_verified: bool
-    created_at: str
-    updated_at: Optional[str] = None
+    id: uuid.UUID
+    age: int
 
-    class Config:
-        orm_mode = True
-
-class PasswordResetRequest(BaseModel):
-    email: EmailStr
-
-class PasswordReset(BaseModel):
-    token: str
-    new_password: constr(min_length=8)
-
-class PasswordChange(BaseModel):
-    current_password: str
-    new_password: constr(min_length=8)
-
-class User(UserBase):
-    id: UUID
-    created_at: str
-    updated_at: Optional[str] = None
-
-    class Config:
-        from_attributes = True 
+    model_config = ConfigDict(from_attributes=True)

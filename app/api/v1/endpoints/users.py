@@ -1,89 +1,103 @@
+# app/api/v1/users.py
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from typing import List
-from ..database import get_db
-from ..models import User
-from ..schemas.user import UserCreate, UserResponse, UserUpdate
-from ..utils.auth import get_current_user, require_admin, check_user_access
+from uuid import UUID
 
-router = APIRouter(
-    prefix="/users",
-    tags=["users"]
-)
+from app.db.session import get_db
+from app.models.user import User as UserModel
+from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.core.security import get_password_hash, get_current_user
+from app.models.enums import UserRole
 
-@router.get("/me", response_model=UserResponse)
-async def read_users_me(current_user: User = Depends(get_current_user)):
-    """Get current user's information."""
-    return current_user
+router = APIRouter(tags=["users"])
 
-@router.get("/{user_id}", response_model=UserResponse)
-async def read_user(
-    user_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get user information by ID."""
-    check_user_access(current_user, user_id)
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
 
-@router.get("/", response_model=List[UserResponse])
-async def read_users(
-    skip: int = 0,
-    limit: int = 100,
-    current_user: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
-    """Get all users (admin only)."""
-    users = db.query(User).offset(skip).limit(limit).all()
-    return users
-
-@router.post("/", response_model=UserResponse)
-async def create_user(
-    user: UserCreate,
-    current_user: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
-    """Create a new user (admin only)."""
-    db_user = User(**user.dict())
+@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.execute(select(UserModel).filter(UserModel.email == user.email)).scalars().first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    db_user = UserModel(**user.model_dump(exclude={"password"}), password=hashed_password)
+    
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-@router.put("/{user_id}", response_model=UserResponse)
-async def update_user(
-    user_id: int,
-    user_update: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+
+@router.get("/", response_model=List[UserResponse])
+def read_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
 ):
-    """Update user information."""
-    check_user_access(current_user, user_id)
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if db_user is None:
+    if not current_user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    users = db.execute(select(UserModel).offset(skip).limit(limit)).scalars().all()
+    return users
+
+
+@router.get("/me", response_model=UserResponse)
+def read_current_user(
+    current_user: UserModel = Depends(get_current_user),
+):
+    return current_user
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+def read_user(user_id: UUID, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
+    if user_id != current_user.id and not current_user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    
+    user = db.get(UserModel, user_id)
+    if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@router.put("/{user_id}", response_model=UserResponse)
+def update_user(
+    user_id: UUID,
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    if user_id != current_user.id and not current_user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    db_user = db.get(UserModel, user_id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    update_data = user_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_user, field, value)
     
-    for key, value in user_update.dict(exclude_unset=True).items():
-        setattr(db_user, key, value)
-    
+    db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(
-    user_id: int,
-    current_user: User = Depends(require_admin),
-    db: Session = Depends(get_db)
+def delete_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
 ):
-    """Delete a user (admin only)."""
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if db_user is None:
+    if user_id != current_user.id and not current_user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    db_user = db.get(UserModel, user_id)
+    if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     db.delete(db_user)
     db.commit()
-    return None 
+    return None

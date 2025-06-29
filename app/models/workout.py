@@ -1,28 +1,25 @@
-from sqlalchemy import Column, String, ForeignKey, event
-from sqlalchemy.orm import relationship
-import uuid
-from sqlalchemy.dialects.postgresql import UUID
-from .base import BaseModel
-from .utils import generate_slug
+from __future__ import annotations
 
-class Workout(BaseModel):
+import uuid
+
+import sqlalchemy as sa
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base
+from app.models.exercise import Exercise
+
+
+class Workout(Base):
     __tablename__ = "workouts"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String)
-    slug = Column(String, unique=True, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str]
+    user_id: Mapped[uuid.UUID] = mapped_column(sa.ForeignKey("users.id"))
+    user: Mapped["User"] = relationship(back_populates="workouts")
 
-    user = relationship("User", back_populates="workouts")
-    exercises = relationship("Exercise", back_populates="workout", cascade="all, delete-orphan")
+    exercises: Mapped[list["Exercise"]] = relationship(
+        back_populates="workout", cascade="all, delete-orphan"
+    )
 
-    def update_slug(self):
-        """Update the slug based on the current name."""
-        self.slug = generate_slug(self.name)
-
-# Event listener to automatically update slug when name changes
-@event.listens_for(Workout, 'before_insert')
-@event.listens_for(Workout, 'before_update')
-def update_workout_slug(mapper, connection, target):
-    if hasattr(target, 'name'):
-        target.update_slug() 
+    def __repr__(self) -> str:
+        return f"<Workout(id={self.id}, name={self.name})>"
